@@ -33,7 +33,7 @@ class HealthConnectManager(private val context: Context) {
         )
     }
 
-    private val healthConnectClient by lazy {
+    val healthConnectClient by lazy {
         HealthConnectClient.getOrCreate(context)
     }
 
