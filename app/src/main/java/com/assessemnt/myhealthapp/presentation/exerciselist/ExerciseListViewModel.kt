@@ -22,6 +22,9 @@ class ExerciseListViewModel(application: Application) : AndroidViewModel(applica
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _needsPermission = MutableStateFlow(false)
+    val needsPermission: StateFlow<Boolean> = _needsPermission.asStateFlow()
+
     init {
         loadExercises()
     }
@@ -52,7 +55,37 @@ class ExerciseListViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    fun refresh() {
-        loadExercises()
+    fun onSyncClicked() {
+        viewModelScope.launch {
+            // Check if Health Connect is available
+            if (!healthConnectManager.isAvailable()) {
+                return@launch
+            }
+
+            // Check permissions
+            if (!healthConnectManager.hasAllPermissions()) {
+                _needsPermission.value = true
+                return@launch
+            }
+
+            // If permissions granted, fetch data
+            _isLoading.value = true
+            try {
+                val endTime = Instant.now()
+                val startTime = endTime.minus(7, ChronoUnit.DAYS)
+                val exerciseList = healthConnectManager.readExercises(startTime, endTime)
+                _exercises.value = exerciseList
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun onPermissionHandled() {
+        _needsPermission.value = false
+    }
+
+    fun deleteExercise(exerciseId: String) {
+        _exercises.value = _exercises.value.filter { it.id != exerciseId }
     }
 }

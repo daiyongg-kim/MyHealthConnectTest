@@ -1,15 +1,22 @@
 package com.assessemnt.myhealthapp.presentation.exerciselist
 
+import android.content.Intent
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.assessemnt.myhealthapp.PermissionCheckActivity
 import com.assessemnt.myhealthapp.domain.model.Exercise
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -17,13 +24,35 @@ import com.assessemnt.myhealthapp.domain.model.Exercise
 fun ExerciseListScreen(
     viewModel: ExerciseListViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val exercises by viewModel.exercises.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val needsPermission by viewModel.needsPermission.collectAsStateWithLifecycle()
+
+    // Launch PermissionCheckActivity when permission is needed
+    LaunchedEffect(needsPermission) {
+        if (needsPermission) {
+            val intent = Intent(context, PermissionCheckActivity::class.java)
+            context.startActivity(intent)
+            viewModel.onPermissionHandled()
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("My Exercises") }
+                title = { Text("My Exercises") },
+                actions = {
+                    IconButton(
+                        onClick = { viewModel.onSyncClicked() },
+                        enabled = !isLoading
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Sync from Health Connect"
+                        )
+                    }
+                }
             )
         }
     ) { padding ->
@@ -56,7 +85,10 @@ fun ExerciseListScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(exercises) { exercise ->
-                        ExerciseCard(exercise)
+                        ExerciseCard(
+                            exercise = exercise,
+                            onDelete = { viewModel.deleteExercise(exercise.id) }
+                        )
                     }
                 }
             }
@@ -64,10 +96,21 @@ fun ExerciseListScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ExerciseCard(exercise: Exercise) {
+fun ExerciseCard(
+    exercise: Exercise,
+    onDelete: () -> Unit
+) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = { },
+                onLongClick = { showDeleteDialog = true }
+            )
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -90,5 +133,28 @@ fun ExerciseCard(exercise: Exercise) {
                 style = MaterialTheme.typography.bodySmall
             )
         }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Exercise") },
+            text = { Text("Are you sure you want to delete this exercise?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete()
+                        showDeleteDialog = false
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
