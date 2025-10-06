@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.assessemnt.myhealthapp.data.healthconnect.HealthConnectManager
 import com.assessemnt.myhealthapp.domain.model.DataSource
 import com.assessemnt.myhealthapp.domain.model.Exercise
+import com.assessemnt.myhealthapp.domain.model.ExerciseConflict
+import com.assessemnt.myhealthapp.presentation.conflictlist.ConflictListViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,11 +35,74 @@ class ExerciseListViewModel(application: Application) : AndroidViewModel(applica
     private val _needsPermission = MutableStateFlow(false)
     val needsPermission: StateFlow<Boolean> = _needsPermission.asStateFlow()
 
+    private val _showConflictDialog = MutableStateFlow(false)
+    val showConflictDialog: StateFlow<Boolean> = _showConflictDialog.asStateFlow()
+
+    private val _conflictingExercises = MutableStateFlow<List<Exercise>>(emptyList())
+    val conflictingExercises: StateFlow<List<Exercise>> = _conflictingExercises.asStateFlow()
+
     init {
         loadManualExercises()
     }
 
     fun refreshExercises() {
+        checkForConflicts()
+    }
+
+    private fun checkForConflicts() {
+        // Check for time conflicts in manual exercises
+        Log.d("ExerciseList", "=== Checking conflicts for ${manualExercises.size} exercises ===")
+
+        val conflictList = mutableListOf<Exercise>()
+        val processedIds = mutableSetOf<String>()
+
+        for (exercise in manualExercises) {
+            if (processedIds.contains(exercise.id)) continue
+
+            val duplicates = manualExercises.filter { other ->
+                other.id != exercise.id &&
+                !processedIds.contains(other.id) &&
+                hasTimeOverlap(exercise, other)
+            }
+
+            if (duplicates.isNotEmpty()) {
+                Log.d("ExerciseList", "Found conflict: ${exercise.type} at ${exercise.startTime} overlaps with ${duplicates.size} others")
+
+                // Add to conflict list
+                if (!conflictList.contains(exercise)) {
+                    conflictList.add(exercise)
+                }
+                conflictList.addAll(duplicates)
+
+                processedIds.add(exercise.id)
+                processedIds.addAll(duplicates.map { it.id })
+            }
+        }
+
+        if (conflictList.isNotEmpty()) {
+            Log.d("ExerciseList", "=== Showing conflict dialog with ${conflictList.size} exercises ===")
+            _conflictingExercises.value = conflictList
+            _showConflictDialog.value = true
+        } else {
+            Log.d("ExerciseList", "=== No conflicts detected ===")
+            loadManualExercises()
+        }
+    }
+
+    fun dismissConflictDialog() {
+        // Cancel - keep all exercises, don't remove anything
+        _showConflictDialog.value = false
+        _conflictingExercises.value = emptyList()
+        loadManualExercises()
+    }
+
+    fun resolveConflicts(selectedExerciseId: String) {
+        // Keep only the selected exercise, remove others
+        val conflictIds = _conflictingExercises.value.map { it.id }
+        manualExercises.removeAll { it.id in conflictIds && it.id != selectedExerciseId }
+
+        _showConflictDialog.value = false
+        _conflictingExercises.value = emptyList()
         loadManualExercises()
     }
 
@@ -169,4 +234,19 @@ class ExerciseListViewModel(application: Application) : AndroidViewModel(applica
     fun deleteExercise(exerciseId: String) {
         _exercises.value = _exercises.value.filter { it.id != exerciseId }
     }
+
+    private fun hasTimeOverlap(e1: Exercise, e2: Exercise): Boolean {
+        val e1Start = toMinutes(e1.startTime)
+        val e1End = e1Start + e1.durationMinutes
+        val e2Start = toMinutes(e2.startTime)
+        val e2End = e2Start + e2.durationMinutes
+        return e1Start < e2End && e2Start < e1End
+    }
+
+    @Suppress("DEPRECATION")
+    private fun toMinutes(time: kotlinx.datetime.LocalDateTime): Long {
+        return time.year * 525600L + time.monthNumber * 43800L +
+                time.dayOfMonth * 1440L + time.hour * 60L + time.minute
+    }
+
 }

@@ -27,9 +27,7 @@ data class ManualInputState(
     val durationError: String? = null,
     val startTimeError: String? = null,
     val distanceError: String? = null,
-    val caloriesError: String? = null,
-    val showConflictDialog: Boolean = false,
-    val conflictingExercise: Exercise? = null
+    val caloriesError: String? = null
 )
 
 class ManualInputViewModel(application: Application) : AndroidViewModel(application) {
@@ -96,21 +94,6 @@ class ManualInputViewModel(application: Application) : AndroidViewModel(applicat
         _state.update { it.copy(notes = notes) }
     }
 
-    fun dismissConflictDialog() {
-        _state.update { it.copy(showConflictDialog = false, conflictingExercise = null) }
-    }
-
-    fun resolveConflictKeepNew() {
-        // Keep the new exercise, discard the conflict
-        _state.update { it.copy(showConflictDialog = false, conflictingExercise = null) }
-        saveWithoutConflictCheck()
-    }
-
-    fun resolveConflictKeepExisting() {
-        // Keep the existing exercise, discard the new one
-        _state.update { it.copy(showConflictDialog = false, conflictingExercise = null, isSaving = false) }
-    }
-
     fun saveExercise() {
         // Validate all fields
         val currentState = _state.value
@@ -137,39 +120,6 @@ class ManualInputViewModel(application: Application) : AndroidViewModel(applicat
             currentState.caloriesError != null) {
             return
         }
-
-        // Check for conflicts before saving
-        val newExercise = Exercise(
-            id = UUID.randomUUID().toString(),
-            type = currentState.exerciseType,
-            startTime = currentState.startTime,
-            durationMinutes = currentState.durationMinutes.toInt(),
-            source = DataSource.MANUAL,
-            distance = currentState.distance.toDoubleOrNull(),
-            calories = currentState.calories.toIntOrNull(),
-            notes = currentState.notes.ifBlank { null }
-        )
-
-        // Check for time overlap with existing manual exercises
-        val conflicting = ExerciseListViewModel.manualExercises.find { existing ->
-            hasTimeOverlap(existing, newExercise)
-        }
-
-        if (conflicting != null) {
-            _state.update {
-                it.copy(
-                    isSaving = false,
-                    showConflictDialog = true,
-                    conflictingExercise = conflicting
-                )
-            }
-        } else {
-            saveWithoutConflictCheck()
-        }
-    }
-
-    private fun saveWithoutConflictCheck() {
-        val currentState = _state.value
 
         _state.update { it.copy(isSaving = true, error = null) }
 
@@ -201,22 +151,5 @@ class ManualInputViewModel(application: Application) : AndroidViewModel(applicat
                 }
             }
         }
-    }
-
-    private fun hasTimeOverlap(e1: Exercise, e2: Exercise): Boolean {
-        // Calculate end times
-        val e1Start = toMinutes(e1.startTime)
-        val e1End = e1Start + e1.durationMinutes
-
-        val e2Start = toMinutes(e2.startTime)
-        val e2End = e2Start + e2.durationMinutes
-
-        // Check for overlap: e1 starts before e2 ends AND e2 starts before e1 ends
-        return e1Start < e2End && e2Start < e1End
-    }
-
-    private fun toMinutes(time: kotlinx.datetime.LocalDateTime): Long {
-        return time.year * 525600L + time.monthNumber * 43800L +
-                time.dayOfMonth * 1440L + time.hour * 60L + time.minute
     }
 }

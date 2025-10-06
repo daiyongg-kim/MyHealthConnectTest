@@ -145,58 +145,6 @@ fun ManualInputScreen(
             }
         }
     }
-
-    // Conflict Dialog
-    state.conflictingExercise?.let { conflictingExercise ->
-        if (state.showConflictDialog) {
-            ConflictDialog(
-                existingExercise = conflictingExercise,
-                onKeepNew = { viewModel.resolveConflictKeepNew() },
-                onKeepExisting = { viewModel.resolveConflictKeepExisting() },
-                onDismiss = { viewModel.dismissConflictDialog() }
-            )
-        }
-    }
-}
-
-@Composable
-fun ConflictDialog(
-    existingExercise: com.assessemnt.myhealthapp.domain.model.Exercise,
-    onKeepNew: () -> Unit,
-    onKeepExisting: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Time Conflict Detected") },
-        text = {
-            Column {
-                Text("The time you selected overlaps with an existing exercise:")
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "${existingExercise.type} - ${existingExercise.durationMinutes} min",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                )
-                Text(
-                    text = "Time: ${existingExercise.startTime}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("What would you like to do?")
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onKeepNew) {
-                Text("Keep New")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onKeepExisting) {
-                Text("Keep Existing")
-            }
-        }
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -24,12 +24,15 @@ import com.assessemnt.myhealthapp.domain.model.Exercise
 @Composable
 fun ExerciseListScreen(
     onNavigateToManualInput: () -> Unit,
+    onNavigateToConflictList: () -> Unit,
     viewModel: ExerciseListViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val exercises by viewModel.exercises.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val needsPermission by viewModel.needsPermission.collectAsStateWithLifecycle()
+    val showConflictDialog by viewModel.showConflictDialog.collectAsStateWithLifecycle()
+    val conflictingExercises by viewModel.conflictingExercises.collectAsStateWithLifecycle()
 
     // Launch PermissionCheckActivity when permission is needed
     LaunchedEffect(needsPermission) {
@@ -38,6 +41,19 @@ fun ExerciseListScreen(
             context.startActivity(intent)
             viewModel.onPermissionHandled()
         }
+    }
+
+    // Show conflict dialog
+    if (showConflictDialog) {
+        ConflictDialog(
+            conflictingExercises = conflictingExercises,
+            onResolve = { selectedId ->
+                viewModel.resolveConflicts(selectedId)
+            },
+            onDismiss = {
+                viewModel.dismissConflictDialog()
+            }
+        )
     }
 
     Scaffold(
@@ -169,4 +185,69 @@ fun ExerciseCard(
             }
         )
     }
+}
+
+@Composable
+fun ConflictDialog(
+    conflictingExercises: List<Exercise>,
+    onResolve: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedId by remember { mutableStateOf(conflictingExercises.firstOrNull()?.id ?: "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Time Conflict Detected") },
+        text = {
+            Column {
+                Text(
+                    text = "Multiple exercises overlap in time. Select which one to keep:",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                conflictingExercises.forEach { exercise ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selectedId == exercise.id,
+                            onClick = {
+                                selectedId = exercise.id
+                            }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "${exercise.type} - ${exercise.durationMinutes} min",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "Time: ${exercise.startTime}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onResolve(selectedId)
+                }
+            ) {
+                Text("Keep Selected")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

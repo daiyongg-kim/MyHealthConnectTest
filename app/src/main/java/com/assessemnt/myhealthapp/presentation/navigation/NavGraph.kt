@@ -5,12 +5,14 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.assessemnt.myhealthapp.presentation.conflictlist.ConflictListScreen
 import com.assessemnt.myhealthapp.presentation.exerciselist.ExerciseListScreen
 import com.assessemnt.myhealthapp.presentation.manualinput.ManualInputScreen
 
 sealed class Screen(val route: String) {
     data object ExerciseList : Screen("exercise_list")
     data object ManualInput : Screen("manual_input")
+    data object ConflictList : Screen("conflict_list")
 }
 
 @Composable
@@ -34,6 +36,9 @@ fun NavGraph(
                 onNavigateToManualInput = {
                     navController.navigate(Screen.ManualInput.route)
                 },
+                onNavigateToConflictList = {
+                    navController.navigate(Screen.ConflictList.route)
+                },
                 viewModel = viewModel
             )
         }
@@ -41,6 +46,15 @@ fun NavGraph(
         // Manual Input Screen
         composable(Screen.ManualInput.route) {
             ManualInputScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // Conflict List Screen
+        composable(Screen.ConflictList.route) {
+            ConflictListScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 }
