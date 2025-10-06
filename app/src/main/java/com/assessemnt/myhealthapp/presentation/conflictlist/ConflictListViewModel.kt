@@ -26,16 +26,8 @@ class ConflictListViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun resolveConflict(conflictId: String, selectedExerciseId: String) {
-        val conflict = detectedConflicts.find { it.id == conflictId } ?: return
-
-        // Remove the non-selected exercise from manual exercises
-        val exerciseToRemove = if (selectedExerciseId == conflict.exercise1.id) {
-            conflict.exercise2
-        } else {
-            conflict.exercise1
-        }
-
-        ExerciseListViewModel.manualExercises.removeAll { it.id == exerciseToRemove.id }
+        // TODO: Update to use database repository
+        // This screen is not currently used - conflict resolution happens in ExerciseListScreen
 
         // Mark conflict as resolved and remove from list
         detectedConflicts.removeAll { it.id == conflictId }

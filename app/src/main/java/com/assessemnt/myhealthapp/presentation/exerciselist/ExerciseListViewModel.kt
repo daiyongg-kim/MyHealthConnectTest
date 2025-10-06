@@ -5,6 +5,8 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.assessemnt.myhealthapp.data.healthconnect.HealthConnectManager
+import com.assessemnt.myhealthapp.data.local.ExerciseDatabase
+import com.assessemnt.myhealthapp.data.repository.ExerciseRepository
 import com.assessemnt.myhealthapp.domain.model.DataSource
 import com.assessemnt.myhealthapp.domain.model.Exercise
 import com.assessemnt.myhealthapp.domain.model.ExerciseConflict
@@ -19,12 +21,13 @@ import kotlin.math.abs
 
 class ExerciseListViewModel(application: Application) : AndroidViewModel(application) {
 
-    companion object {
-        // Temporary shared storage for manual exercises
-        val manualExercises = mutableListOf<Exercise>()
-    }
-
+    private val repository: ExerciseRepository
     private val healthConnectManager = HealthConnectManager(application)
+
+    init {
+        val database = ExerciseDatabase.getDatabase(application)
+        repository = ExerciseRepository(database.exerciseDao())
+    }
 
     private val _exercises = MutableStateFlow<List<Exercise>>(emptyList())
     val exercises: StateFlow<List<Exercise>> = _exercises.asStateFlow()
@@ -42,74 +45,94 @@ class ExerciseListViewModel(application: Application) : AndroidViewModel(applica
     val conflictingExercises: StateFlow<List<Exercise>> = _conflictingExercises.asStateFlow()
 
     init {
-        loadManualExercises()
+        loadExercises()
+    }
+
+    private fun loadExercises() {
+        viewModelScope.launch {
+            repository.getAllExercises().collect { exercises ->
+                _exercises.value = exercises
+                Log.d("ExerciseList", "=== Loaded ${exercises.size} exercises from database ===")
+            }
+        }
     }
 
     fun refreshExercises() {
-        checkForConflicts()
+        viewModelScope.launch {
+            val currentExercises = _exercises.value
+            checkForConflicts(currentExercises)
+        }
     }
 
-    private fun checkForConflicts() {
-        // Check for time conflicts in manual exercises
-        Log.d("ExerciseList", "=== Checking conflicts for ${manualExercises.size} exercises ===")
+    private fun checkForConflicts(exercises: List<Exercise>) {
+        Log.d("ExerciseList", "=== Checking conflicts for ${exercises.size} exercises ===")
 
-        val conflictList = mutableListOf<Exercise>()
+        val conflictGroups = mutableListOf<List<Exercise>>()
         val processedIds = mutableSetOf<String>()
 
-        for (exercise in manualExercises) {
+        for (exercise in exercises) {
             if (processedIds.contains(exercise.id)) continue
 
-            val duplicates = manualExercises.filter { other ->
-                other.id != exercise.id &&
-                !processedIds.contains(other.id) &&
-                hasTimeOverlap(exercise, other)
+            // Find all exercises that overlap with this one
+            val group = mutableListOf(exercise)
+            val toProcess = mutableListOf(exercise)
+            val groupIds = mutableSetOf(exercise.id)
+
+            while (toProcess.isNotEmpty()) {
+                val current = toProcess.removeAt(0)
+
+                // Find exercises that overlap with current exercise
+                val overlapping = exercises.filter { other ->
+                    other.id != current.id &&
+                    !groupIds.contains(other.id) &&
+                    hasTimeOverlap(current, other)
+                }
+
+                overlapping.forEach { overlap ->
+                    group.add(overlap)
+                    groupIds.add(overlap.id)
+                    toProcess.add(overlap)
+                }
             }
 
-            if (duplicates.isNotEmpty()) {
-                Log.d("ExerciseList", "Found conflict: ${exercise.type} at ${exercise.startTime} overlaps with ${duplicates.size} others")
-
-                // Add to conflict list
-                if (!conflictList.contains(exercise)) {
-                    conflictList.add(exercise)
-                }
-                conflictList.addAll(duplicates)
-
+            if (group.size > 1) {
+                Log.d("ExerciseList", "Found conflict group with ${group.size} exercises")
+                conflictGroups.add(group)
+                processedIds.addAll(groupIds)
+            } else {
                 processedIds.add(exercise.id)
-                processedIds.addAll(duplicates.map { it.id })
             }
         }
 
-        if (conflictList.isNotEmpty()) {
-            Log.d("ExerciseList", "=== Showing conflict dialog with ${conflictList.size} exercises ===")
-            _conflictingExercises.value = conflictList
+        if (conflictGroups.isNotEmpty()) {
+            // Show the first conflict group
+            val firstGroup = conflictGroups.first()
+            Log.d("ExerciseList", "=== Showing conflict dialog for first group with ${firstGroup.size} exercises ===")
+            _conflictingExercises.value = firstGroup
             _showConflictDialog.value = true
         } else {
             Log.d("ExerciseList", "=== No conflicts detected ===")
-            loadManualExercises()
         }
     }
 
     fun dismissConflictDialog() {
-        // Cancel - keep all exercises, don't remove anything
         _showConflictDialog.value = false
         _conflictingExercises.value = emptyList()
-        loadManualExercises()
     }
 
     fun resolveConflicts(selectedExerciseId: String) {
-        // Keep only the selected exercise, remove others
-        val conflictIds = _conflictingExercises.value.map { it.id }
-        manualExercises.removeAll { it.id in conflictIds && it.id != selectedExerciseId }
+        viewModelScope.launch {
+            val conflictIds = _conflictingExercises.value.map { it.id }
+            val idsToDelete = conflictIds.filter { it != selectedExerciseId }
+            repository.deleteExercisesByIds(idsToDelete)
 
-        _showConflictDialog.value = false
-        _conflictingExercises.value = emptyList()
-        loadManualExercises()
-    }
+            _showConflictDialog.value = false
+            _conflictingExercises.value = emptyList()
 
-    private fun loadManualExercises() {
-        // Only show manual exercises, no Health Connect sync
-        _exercises.value = manualExercises.sortedByDescending { it.startTime.toString() }
-        Log.d("ExerciseList", "=== Loaded ${manualExercises.size} manual exercises ===")
+            // After resolving, check if there are more conflicts
+            val currentExercises = _exercises.value
+            checkForConflicts(currentExercises)
+        }
     }
 
     fun onSyncClicked() {
@@ -133,21 +156,23 @@ class ExerciseListViewModel(application: Application) : AndroidViewModel(applica
                 val healthConnectExercises = healthConnectManager.readExercises(startTime, endTime)
 
                 Log.d("ExerciseList", "=== Sync: Fetched ${healthConnectExercises.size} from Health Connect ===")
-                healthConnectExercises.forEachIndexed { index, exercise ->
-                    Log.d("ExerciseList", "[HC-$index] ${exercise.type} | ${exercise.durationMinutes}min | ${exercise.source.displayName()} | ${exercise.startTime} | ID: ${exercise.id}")
-                }
+
+                // Get current exercises from database
+                val currentExercises = _exercises.value
+
+                // Combine all exercises
+                val allExercises = currentExercises + healthConnectExercises
+                Log.d("ExerciseList", "=== Before dedup: Current=${currentExercises.size}, New=${healthConnectExercises.size} ===")
 
                 // Remove duplicates: prefer Health Connect over Manual
-                Log.d("ExerciseList", "=== Before dedup: Current=${_exercises.value.size}, New=${healthConnectExercises.size} ===")
-                val allExercises = _exercises.value + healthConnectExercises
                 val uniqueExercises = removeDuplicates(allExercises)
-
                 Log.d("ExerciseList", "=== After dedup: ${uniqueExercises.size} exercises ===")
-                uniqueExercises.forEachIndexed { index, exercise ->
-                    Log.d("ExerciseList", "[Final-$index] ${exercise.type} | ${exercise.durationMinutes}min | ${exercise.source.displayName()} | ${exercise.startTime} | ID: ${exercise.id}")
-                }
 
-                _exercises.value = uniqueExercises
+                // Save all unique exercises to database
+                repository.insertExercises(uniqueExercises)
+
+                // Check for conflicts in the combined list
+                checkForConflicts(uniqueExercises)
             } finally {
                 _isLoading.value = false
             }
@@ -232,7 +257,9 @@ class ExerciseListViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun deleteExercise(exerciseId: String) {
-        _exercises.value = _exercises.value.filter { it.id != exerciseId }
+        viewModelScope.launch {
+            repository.deleteExerciseById(exerciseId)
+        }
     }
 
     private fun hasTimeOverlap(e1: Exercise, e2: Exercise): Boolean {

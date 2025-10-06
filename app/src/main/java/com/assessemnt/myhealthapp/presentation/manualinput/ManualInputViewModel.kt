@@ -3,9 +3,10 @@ package com.assessemnt.myhealthapp.presentation.manualinput
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.assessemnt.myhealthapp.data.local.ExerciseDatabase
+import com.assessemnt.myhealthapp.data.repository.ExerciseRepository
 import com.assessemnt.myhealthapp.domain.model.DataSource
 import com.assessemnt.myhealthapp.domain.model.Exercise
-import com.assessemnt.myhealthapp.presentation.exerciselist.ExerciseListViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +32,13 @@ data class ManualInputState(
 )
 
 class ManualInputViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val repository: ExerciseRepository
+
+    init {
+        val database = ExerciseDatabase.getDatabase(application)
+        repository = ExerciseRepository(database.exerciseDao())
+    }
 
     private val _state = MutableStateFlow(ManualInputState(
         startTime = getCurrentDateTime()
@@ -136,8 +144,8 @@ class ManualInputViewModel(application: Application) : AndroidViewModel(applicat
                     notes = currentState.notes.ifBlank { null }
                 )
 
-                // Save to shared storage
-                ExerciseListViewModel.manualExercises.add(exercise)
+                // Save to database
+                repository.insertExercise(exercise)
 
                 _state.update {
                     it.copy(isSaving = false, isSaved = true)
