@@ -182,22 +182,22 @@ Exercise(
 ### Main Exercise List
 The main screen showing all tracked exercises with manual and Health Connect synced data.
 
-![Exercise List](screen/ExerciseList.png)
+<img src="screen/ExerciseList.png" width="300">
 
 ### Manual Exercise Input
 Add exercises manually with type, time, duration, distance, calories, and notes.
 
-![Manual Input](screen/ManualInput.png)
+<img src="screen/ManualInput.png" width="300">
 
 ### Health Connect Permission
 Permission request screen when Health Connect access is needed.
 
-![Permission](screen/Permission.png)
+<img src="screen/Permission.png" width="300">
 
 ### Health Connect Integration
 Screen shown when the app doesn't have Health Connect permission.
 
-![Health Connect](screen/HealthConnect.png)
+<img src="screen/HealthConnect.png" width="300">
 
 ## Usage
 
