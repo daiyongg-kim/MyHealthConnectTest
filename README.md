@@ -34,6 +34,8 @@ An Android application for exercise tracking integrated with Health Connect. Sup
 
 ```
 app/src/main/java/com/assessemnt/myhealthapp/
+├── MainActivity.kt                        # Main entry point
+├── PermissionCheckActivity.kt             # Health Connect permission handling
 ├── data/
 │   ├── healthconnect/
 │   │   └── HealthConnectManager.kt        # Health Connect API integration
