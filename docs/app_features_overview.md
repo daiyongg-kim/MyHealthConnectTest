@@ -105,7 +105,7 @@ Duplicates: Same type within 5min
 
 **Detection:** `e1.start < e2.end AND e2.start < e1.end`
 
-**Algorithm:** BFS graph traversal → Group overlaps → Resolve iteratively
+**Algorithm:** Group overlaps → Resolve iteratively
 
 </td>
 <td width="50%">
