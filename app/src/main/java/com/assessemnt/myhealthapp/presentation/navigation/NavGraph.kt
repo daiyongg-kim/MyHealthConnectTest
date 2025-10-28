@@ -1,12 +1,13 @@
 package com.assessemnt.myhealthapp.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.assessemnt.myhealthapp.presentation.conflictlist.ConflictListScreen
-import com.assessemnt.myhealthapp.presentation.exerciselist.ExerciseListScreen
+import com.assessemnt.myhealthapp.presentation.exerciselist.*
 import com.assessemnt.myhealthapp.presentation.manualinput.ManualInputScreen
 
 sealed class Screen(val route: String) {
@@ -25,7 +26,7 @@ fun NavGraph(
     ) {
         // Exercise List Screen
         composable(Screen.ExerciseList.route) {
-            val viewModel: com.assessemnt.myhealthapp.presentation.exerciselist.ExerciseListViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+            val viewModel: ExerciseListViewModel = viewModel()
 
             // Refresh when returning from manual input
             androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -35,9 +36,6 @@ fun NavGraph(
             ExerciseListScreen(
                 onNavigateToManualInput = {
                     navController.navigate(Screen.ManualInput.route)
-                },
-                onNavigateToConflictList = {
-                    navController.navigate(Screen.ConflictList.route)
                 },
                 viewModel = viewModel
             )

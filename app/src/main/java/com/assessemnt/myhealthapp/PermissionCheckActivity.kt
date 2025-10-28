@@ -50,15 +50,15 @@ class PermissionCheckActivity : ComponentActivity() {
         val permissionLauncher = rememberLauncherForActivityResult(
             contract = PermissionController.createRequestPermissionResultContract()
         ) { granted ->
-            Log.d("MainActivity", "Permission callback - Granted permissions: ${granted.size}")
-            Log.d("MainActivity", "Permission callback - Required permissions: ${HealthConnectManager.PERMISSIONS.size}")
+            Log.d("PermissionCheckActivity", "Permission callback - Granted permissions: ${granted.size}")
+            Log.d("PermissionCheckActivity", "Permission callback - Required permissions: ${HealthConnectManager.PERMISSIONS.size}")
             granted.forEach { permission ->
                 Log.d("MainActivity", "Granted: $permission")
             }
 
             lifecycleScope.launch {
                 if (granted.containsAll(HealthConnectManager.PERMISSIONS)) {
-                    Log.d("MainActivity", "All permissions granted!")
+                    Log.d("PermissionCheckActivity", "All permissions granted!")
                     message = "Permissions granted! Reading exercises..."
                     readExercises { result ->
                         exercises = result
@@ -66,7 +66,7 @@ class PermissionCheckActivity : ComponentActivity() {
                         isLoading = false
                     }
                 } else {
-                    Log.d("MainActivity", "Permissions denied or incomplete")
+                    Log.d("PermissionCheckActivity", "Permissions denied or incomplete")
                     message = "Permissions denied - granted ${granted.size} of ${HealthConnectManager.PERMISSIONS.size}"
                     isLoading = false
                     Toast.makeText(

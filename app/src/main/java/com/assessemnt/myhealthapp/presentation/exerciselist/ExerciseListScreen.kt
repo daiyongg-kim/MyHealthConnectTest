@@ -1,6 +1,8 @@
 package com.assessemnt.myhealthapp.presentation.exerciselist
 
 import android.content.Intent
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -15,16 +17,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.assessemnt.myhealthapp.PermissionCheckActivity
+import com.assessemnt.myhealthapp.data.healthconnect.HealthConnectManager
 import com.assessemnt.myhealthapp.domain.model.Exercise
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExerciseListScreen(
     onNavigateToManualInput: () -> Unit,
-    onNavigateToConflictList: () -> Unit,
     viewModel: ExerciseListViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -34,12 +37,29 @@ fun ExerciseListScreen(
     val showConflictDialog by viewModel.showConflictDialog.collectAsStateWithLifecycle()
     val conflictingExercises by viewModel.conflictingExercises.collectAsStateWithLifecycle()
 
-    // Launch PermissionCheckActivity when permission is needed
+    // Permission launcher - handles Health Connect permissions directly
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = PermissionController.createRequestPermissionResultContract()
+    ) { granted ->
+        Log.d("ExerciseListScreen", "Permissions granted: ${granted.size} of ${HealthConnectManager.PERMISSIONS.size}")
+
+        // Mark permission handling as complete
+        viewModel.onPermissionHandled()
+
+        // If all permissions granted, automatically retry the sync
+        if (granted.containsAll(HealthConnectManager.PERMISSIONS)) {
+            Log.d("ExerciseListScreen", "All permissions granted - auto-retrying sync")
+            viewModel.onSyncClicked()
+        } else {
+            Log.d("ExerciseListScreen", "Permissions incomplete - user needs to grant all permissions")
+        }
+    }
+
+    // Launch permission request when needed
     LaunchedEffect(needsPermission) {
         if (needsPermission) {
-            val intent = Intent(context, PermissionCheckActivity::class.java)
-            context.startActivity(intent)
-            viewModel.onPermissionHandled()
+            Log.d("ExerciseListScreen", "Launching permission request")
+            permissionLauncher.launch(HealthConnectManager.PERMISSIONS)
         }
     }
 
